@@ -1,11 +1,15 @@
 FROM php:8.2-apache
 
-# Instal dependensi sistem dan PHP extension (terutama untuk PostgreSQL)
+# Instal dependensi sistem dan PHP extension (terutama untuk PostgreSQL dan GD)
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     libzip-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
     unzip \
-    && docker-php-ext-install pdo pdo_pgsql zip
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_pgsql zip gd
 
 # Aktifkan mod_rewrite Apache untuk routing Laravel
 RUN a2enmod rewrite
