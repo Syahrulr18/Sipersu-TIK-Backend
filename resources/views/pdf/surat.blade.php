@@ -178,7 +178,7 @@
                 </table>
             </td>
             <td style="width: 40%; text-align: right; vertical-align: top;">
-                Makassar, {{ \Carbon\Carbon::parse($surat->tanggal_terbit ?? $surat->created_at)->translatedFormat('d F Y') }}
+                Makassar, {{ \Carbon\Carbon::parse($surat->tanggal_terbit ?? $surat->created_at)->locale('id')->translatedFormat('d F Y') }}
             </td>
         </tr>
     </table>
