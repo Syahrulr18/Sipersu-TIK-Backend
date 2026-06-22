@@ -426,16 +426,52 @@ class SuratController extends Controller
                 if ($lamp->mime_type === 'application/pdf') {
                     $lampPath = storage_path('app/public/' . $lamp->path);
                     if (file_exists($lampPath)) {
+                        $pageCountLamp = 0;
                         try {
                             $pageCountLamp = $fpdi->setSourceFile($lampPath);
+                        } catch (\Exception $e) {
+                            // Abaikan sementara error versi, kita akan mencoba downgrade menggunakan Ghostscript
+                            $tempDowngraded = tempnam(sys_get_temp_dir(), 'downgraded_lampiran_') . '.pdf';
+                            $gsPath = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ? 'gswin64c' : 'gs';
+                            
+                            $isGsAvailable = false;
+                            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                                exec("where gswin64c 2>nul", $output, $returnVar);
+                                if ($returnVar === 0) {
+                                    $isGsAvailable = true;
+                                } else {
+                                    exec("where gswin32c 2>nul", $output, $returnVar);
+                                    if ($returnVar === 0) {
+                                        $gsPath = 'gswin32c';
+                                        $isGsAvailable = true;
+                                    }
+                                }
+                            } else {
+                                exec("which gs 2>/dev/null", $output, $returnVar);
+                                if ($returnVar === 0) $isGsAvailable = true;
+                            }
+                            
+                            if ($isGsAvailable) {
+                                $command = escapeshellcmd($gsPath) . " -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile=" . escapeshellarg($tempDowngraded) . " " . escapeshellarg($lampPath);
+                                exec($command, $output, $returnVar);
+                                
+                                if ($returnVar === 0 && file_exists($tempDowngraded)) {
+                                    try {
+                                        $pageCountLamp = $fpdi->setSourceFile($tempDowngraded);
+                                    } catch (\Exception $e2) {
+                                        // Tetap gagal setelah didowngrade
+                                    }
+                                }
+                            }
+                        }
+
+                        if ($pageCountLamp > 0) {
                             for ($i = 1; $i <= $pageCountLamp; $i++) {
                                 $tplIdx = $fpdi->importPage($i);
                                 $size = $fpdi->getTemplateSize($tplIdx);
                                 $fpdi->AddPage($size['orientation'], [$size['width'], $size['height']]);
                                 $fpdi->useTemplate($tplIdx);
                             }
-                        } catch (\Exception $e) {
-                            // Abaikan lampiran PDF jika error (misal terenkripsi atau format > 1.4 yang tidak disupport FPDI gratis)
                         }
                     }
                 }
