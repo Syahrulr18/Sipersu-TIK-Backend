@@ -34,11 +34,10 @@ RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 # Berikan hak akses ke folder storage dan cache
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Sesuaikan port Apache dengan environment variable $PORT dari Render
-RUN sed -i "s/80/\${PORT:-80}/g" /etc/apache2/ports.conf /etc/apache2/sites-available/*.conf
-
 # Buat script untuk dijalankan saat container mulai (otomatis migrasi & link storage)
 RUN echo '#!/bin/bash\n\
+PORT=${PORT:-80}\n\
+sed -i "s/80/$PORT/g" /etc/apache2/ports.conf /etc/apache2/sites-available/*.conf\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
