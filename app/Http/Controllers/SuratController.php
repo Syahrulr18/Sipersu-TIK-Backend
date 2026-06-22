@@ -56,7 +56,7 @@ class SuratController extends Controller
         $sortOrder = $request->input('sort_order', 'desc');
 
         if ($sortBy === 'nomor_surat') {
-            $query->orderByRaw('nomor_surat IS NULL')
+            $query->orderByRaw('CASE WHEN nomor_surat IS NULL THEN 1 ELSE 0 END')
                   ->orderBy('nomor_surat', $sortOrder);
         } else {
             $query->orderBy($sortBy, $sortOrder);

@@ -37,11 +37,14 @@ class DashboardController extends Controller
      */
     public function chart(): JsonResponse
     {
-        $data = Surat::selectRaw("DATE_FORMAT(created_at, '%Y-%m') as bulan, COUNT(*) as total")
+        $isPostgres = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'pgsql';
+        $selectBulan = $isPostgres ? "TO_CHAR(created_at, 'YYYY-MM')" : "DATE_FORMAT(created_at, '%Y-%m')";
+
+        $data = Surat::selectRaw("$selectBulan as bulan, COUNT(*) as total")
             ->where('created_at', '>=', now()->subMonths(6))
             ->where('status', Surat::STATUS_TERBIT)
-            ->groupBy('bulan')
-            ->orderBy('bulan')
+            ->groupByRaw($selectBulan)
+            ->orderByRaw("$selectBulan ASC")
             ->get()
             ->map(fn($item) => [
                 'bulan' => $item->bulan,
