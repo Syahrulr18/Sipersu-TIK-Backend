@@ -39,6 +39,7 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 RUN echo '#!/bin/bash\n\
 PORT=${PORT:-80}\n\
 sed -i "s/80/$PORT/g" /etc/apache2/ports.conf /etc/apache2/sites-available/*.conf\n\
+php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
 php artisan migrate --force\n\
