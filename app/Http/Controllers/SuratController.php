@@ -422,56 +422,63 @@ class SuratController extends Controller
             }
 
             // Import halaman-halaman dari setiap lampiran PDF
+            $tempLampFiles = []; // Track temp files for cleanup
             foreach ($surat->lampiran as $lamp) {
                 if ($lamp->mime_type === 'application/pdf') {
-                    $lampPath = storage_path('app/public/' . $lamp->path);
-                    if (file_exists($lampPath)) {
-                        $pageCountLamp = 0;
-                        try {
-                            $pageCountLamp = $fpdi->setSourceFile($lampPath);
-                        } catch (\Exception $e) {
-                            // Abaikan sementara error versi, kita akan mencoba downgrade menggunakan Ghostscript
-                            $tempDowngraded = tempnam(sys_get_temp_dir(), 'downgraded_lampiran_') . '.pdf';
-                            $gsPath = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ? 'gswin64c' : 'gs';
-                            
-                            $isGsAvailable = false;
-                            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                                exec("where gswin64c 2>nul", $output, $returnVar);
-                                if ($returnVar === 0) {
-                                    $isGsAvailable = true;
-                                } else {
-                                    exec("where gswin32c 2>nul", $output, $returnVar);
-                                    if ($returnVar === 0) {
-                                        $gsPath = 'gswin32c';
-                                        $isGsAvailable = true;
-                                    }
-                                }
+                    // Download file dari storage (S3/local) ke temp lokal
+                    if (!Storage::disk()->exists($lamp->path)) continue;
+                    
+                    $lampContent = Storage::disk()->get($lamp->path);
+                    $lampPath = tempnam(sys_get_temp_dir(), 'lamp_') . '.pdf';
+                    file_put_contents($lampPath, $lampContent);
+                    $tempLampFiles[] = $lampPath;
+
+                    $pageCountLamp = 0;
+                    try {
+                        $pageCountLamp = $fpdi->setSourceFile($lampPath);
+                    } catch (\Exception $e) {
+                        // Abaikan sementara error versi, kita akan mencoba downgrade menggunakan Ghostscript
+                        $tempDowngraded = tempnam(sys_get_temp_dir(), 'downgraded_lampiran_') . '.pdf';
+                        $tempLampFiles[] = $tempDowngraded;
+                        $gsPath = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ? 'gswin64c' : 'gs';
+                        
+                        $isGsAvailable = false;
+                        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                            exec("where gswin64c 2>nul", $output, $returnVar);
+                            if ($returnVar === 0) {
+                                $isGsAvailable = true;
                             } else {
-                                exec("which gs 2>/dev/null", $output, $returnVar);
-                                if ($returnVar === 0) $isGsAvailable = true;
+                                exec("where gswin32c 2>nul", $output, $returnVar);
+                                if ($returnVar === 0) {
+                                    $gsPath = 'gswin32c';
+                                    $isGsAvailable = true;
+                                }
                             }
+                        } else {
+                            exec("which gs 2>/dev/null", $output, $returnVar);
+                            if ($returnVar === 0) $isGsAvailable = true;
+                        }
+                        
+                        if ($isGsAvailable) {
+                            $command = escapeshellcmd($gsPath) . " -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile=" . escapeshellarg($tempDowngraded) . " " . escapeshellarg($lampPath);
+                            exec($command, $output, $returnVar);
                             
-                            if ($isGsAvailable) {
-                                $command = escapeshellcmd($gsPath) . " -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile=" . escapeshellarg($tempDowngraded) . " " . escapeshellarg($lampPath);
-                                exec($command, $output, $returnVar);
-                                
-                                if ($returnVar === 0 && file_exists($tempDowngraded)) {
-                                    try {
-                                        $pageCountLamp = $fpdi->setSourceFile($tempDowngraded);
-                                    } catch (\Exception $e2) {
-                                        // Tetap gagal setelah didowngrade
-                                    }
+                            if ($returnVar === 0 && file_exists($tempDowngraded)) {
+                                try {
+                                    $pageCountLamp = $fpdi->setSourceFile($tempDowngraded);
+                                } catch (\Exception $e2) {
+                                    // Tetap gagal setelah didowngrade
                                 }
                             }
                         }
+                    }
 
-                        if ($pageCountLamp > 0) {
-                            for ($i = 1; $i <= $pageCountLamp; $i++) {
-                                $tplIdx = $fpdi->importPage($i);
-                                $size = $fpdi->getTemplateSize($tplIdx);
-                                $fpdi->AddPage($size['orientation'], [$size['width'], $size['height']]);
-                                $fpdi->useTemplate($tplIdx);
-                            }
+                    if ($pageCountLamp > 0) {
+                        for ($i = 1; $i <= $pageCountLamp; $i++) {
+                            $tplIdx = $fpdi->importPage($i);
+                            $size = $fpdi->getTemplateSize($tplIdx);
+                            $fpdi->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                            $fpdi->useTemplate($tplIdx);
                         }
                     }
                 }
@@ -487,6 +494,12 @@ class SuratController extends Controller
             if (file_exists($tempBasePdf)) {
                 unlink($tempBasePdf);
             }
+            // Cleanup temp lampiran files
+            foreach ($tempLampFiles ?? [] as $tempFile) {
+                if (file_exists($tempFile)) {
+                    @unlink($tempFile);
+                }
+            }
         }
     }
 
@@ -497,11 +510,11 @@ class SuratController extends Controller
     {
         $lamp = SuratLampiran::where('surat_id', $id)->findOrFail($lid);
 
-        if (!Storage::disk('public')->exists($lamp->path)) {
+        if (!Storage::disk()->exists($lamp->path)) {
             return response()->json(['message' => 'File tidak ditemukan'], 404);
         }
 
-        return Storage::disk('public')->download($lamp->path, $lamp->nama_file_asli);
+        return Storage::disk()->download($lamp->path, $lamp->nama_file_asli);
     }
 
     /**

@@ -18,7 +18,7 @@ class FileHelper
         $safeFilename = self::generateSafeFilename($extension);
         $path         = "lampiran/surat-{$suratId}/{$safeFilename}";
 
-        Storage::disk('public')->put($path, file_get_contents($file));
+        Storage::disk()->put($path, file_get_contents($file));
 
         $jumlahHalaman = 1;
         if (strtolower($extension) === 'pdf') {
@@ -48,7 +48,7 @@ class FileHelper
      */
     public static function deleteLampiran(string $path): bool
     {
-        return Storage::disk('public')->delete($path);
+        return Storage::disk()->delete($path);
     }
 
     /**

@@ -131,15 +131,15 @@ class AuthController extends Controller
 
         // Hapus foto lama
         if ($user->foto) {
-            Storage::disk('public')->delete($user->foto);
+            Storage::disk()->delete($user->foto);
         }
 
-        $path = $request->file('photo')->store("foto-profil", 'public');
+        $path = $request->file('photo')->store('foto-profil');
         $user->update(['foto' => $path]);
 
         return response()->json([
             'message'  => 'Foto profil berhasil diupload',
-            'foto_url' => Storage::disk('public')->url($path),
+            'foto_url' => Storage::disk()->url($path),
         ]);
     }
 
@@ -158,15 +158,15 @@ class AuthController extends Controller
         
         // Hapus ttd lama
         if ($user->ttd) {
-            Storage::disk('public')->delete($user->ttd);
+            Storage::disk()->delete($user->ttd);
         }
 
-        $path = $request->file('ttd')->store("tanda-tangan", 'public');
+        $path = $request->file('ttd')->store('tanda-tangan');
         $user->update(['ttd' => $path]);
 
         return response()->json([
             'message'  => 'Tanda tangan berhasil diupload',
-            'ttd_url'  => Storage::disk('public')->url($path),
+            'ttd_url'  => Storage::disk()->url($path),
         ]);
     }
 }

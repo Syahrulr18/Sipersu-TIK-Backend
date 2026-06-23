@@ -51,13 +51,13 @@ class User extends Authenticatable implements JWTSubject
     public function getFotoUrlAttribute(): ?string
     {
         if (!$this->foto) return null;
-        return Storage::disk('public')->url($this->foto);
+        return Storage::disk()->url($this->foto);
     }
 
     public function getTtdUrlAttribute(): ?string
     {
         if (!$this->ttd) return null;
-        return Storage::disk('public')->url($this->ttd);
+        return Storage::disk()->url($this->ttd);
     }
 
     // ── Scopes ───────────────────────────────────────────────────────────────
